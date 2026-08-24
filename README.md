@@ -4,6 +4,14 @@
 
 InstaClean is a privacy-first Instagram relationship analyzer. It runs entirely in your browser — no server, no account creation, no data collection. Find out who doesn't follow you back, discover hidden fans, and clean up your following list.
 
+![InstaClean dashboard](screenshots/dashboard.png)
+
+## Screenshots
+
+| Unfollowers | Hidden fans | Bulk unfollow |
+| :---: | :---: | :---: |
+| ![Unfollowers tab](screenshots/unfollowers.png) | ![Hidden fans tab](screenshots/hidden-fans.png) | ![Bulk unfollow script](screenshots/bulk-unfollow.png) |
+
 ## Features
 
 - **Unfollower detection** — Find accounts you follow that don't follow you back
@@ -15,6 +23,24 @@ InstaClean is a privacy-first Instagram relationship analyzer. It runs entirely 
 - **Scan history** — Track how your follower counts change over time
 - **Search & sort** — Filter results by username or display name
 - **100% client-side** — Your data never leaves your device
+
+## Getting started
+
+```bash
+git clone git@github.com:kaidohTips/InstaClean.git
+cd InstaClean
+npm install
+npm run dev
+```
+
+Then open the local URL Vite prints (defaults to `http://localhost:5173`).
+
+To build a static production bundle you can host anywhere (GitHub Pages, Vercel, Netlify, or just open locally):
+
+```bash
+npm run build
+npm run preview
+```
 
 ## How it works
 
