@@ -127,22 +127,33 @@ function buildUnfollowScript(usernames) {
 }
 
 // ── Data parser — handles multiple export formats ────────────────────
-function parseExport(json) {
-  // InstaClean / console script format
-  if (json.followers && json.following && Array.isArray(json.followers)) {
+// Instagram's official "Download your information" export splits followers
+// and following into separate files (followers_1.json is a bare array,
+// following.json is wrapped in { relationships_following: [...] }), so a
+// single import can only ever supply one side of the picture at a time.
+// This inspects one parsed JSON file and reports which side(s) it covers.
+function parseExportFile(json, filename = "") {
+  // InstaClean / console script format — one file, both sides
+  if (json && !Array.isArray(json) && json.followers && json.following) {
     return {
       followers: json.followers.map(normalizeUser),
       following: json.following.map(normalizeUser),
     };
   }
-  // Instagram official data export
-  if (json.relationships_followers || json.relationships_following) {
-    return {
-      followers: extractOfficialList(json.relationships_followers),
-      following: extractOfficialList(
-        json.relationships_following?.relationships_following || json.relationships_following
-      ),
-    };
+  // Official export, following.json (or a manually wrapped followers file)
+  if (json && json.relationships_following) {
+    return { following: extractOfficialList(json.relationships_following) };
+  }
+  if (json && json.relationships_followers) {
+    return { followers: extractOfficialList(json.relationships_followers) };
+  }
+  // Official export, followers_1.json — a bare array with no side marker,
+  // so fall back to the filename to tell followers and following apart.
+  if (Array.isArray(json)) {
+    const list = extractOfficialList(json);
+    return filename.toLowerCase().includes("following")
+      ? { following: list }
+      : { followers: list };
   }
   return null;
 }
@@ -166,6 +177,21 @@ function extractOfficialList(list) {
     id: "",
     verified: false,
   }));
+}
+
+// ── Avatar with broken-image fallback ──────────────────────────────────
+function Avatar({ user }) {
+  const [broken, setBroken] = useState(false);
+  const letter = (user.username[0] || "?").toUpperCase();
+  return (
+    <div style={S.avatar}>
+      {user.pic && !broken ? (
+        <img src={user.pic} alt="" style={S.avatarImg} onError={() => setBroken(true)} />
+      ) : (
+        <span style={S.avatarLetter}>{letter}</span>
+      )}
+    </div>
+  );
 }
 
 // ── Animated number ──────────────────────────────────────────────────
@@ -263,32 +289,50 @@ export default function InstaClean() {
   }, [tab, lists, query, sort, whitelist]);
 
   // ── Actions ──
-  const importFile = useCallback(async (file) => {
+  const importFiles = useCallback(async (files) => {
+    let followers = null;
+    let following = null;
     try {
-      const text = await file.text();
-      const parsed = parseExport(JSON.parse(text));
-      if (!parsed) {
-        alert("Unrecognized format. Use the console script or Instagram data export.");
-        return;
+      for (const file of files) {
+        const text = await file.text();
+        const part = parseExportFile(JSON.parse(text), file.name);
+        if (!part) continue;
+        if (part.followers) followers = part.followers;
+        if (part.following) following = part.following;
       }
-      const now = new Date().toISOString();
-      setData(parsed);
-      setScanDate(now);
-      setView("dashboard");
-
-      const followerSet = new Set(parsed.followers.map(u => u.username));
-      const entry = {
-        date: now,
-        followers: parsed.followers.length,
-        following: parsed.following.length,
-        unfollowers: parsed.following.filter(u => !followerSet.has(u.username)).length,
-      };
-      const next = [...history, entry].slice(-30);
-      setHistory(next);
-      persist({ data: parsed, scanDate: now, history: next });
     } catch (_) {
       alert("Failed to read file. Make sure it's valid JSON.");
+      return;
     }
+
+    if (!followers || !following) {
+      alert(
+        !followers && !following
+          ? "Unrecognized format. Use the console script or Instagram's data export."
+          : "Missing your " + (!followers ? "followers" : "following") +
+            " file — select both files from your Instagram export " +
+            "(e.g. followers_1.json and following.json) at once, or use " +
+            "the console script which exports everything in one file."
+      );
+      return;
+    }
+
+    const parsed = { followers, following };
+    const now = new Date().toISOString();
+    setData(parsed);
+    setScanDate(now);
+    setView("dashboard");
+
+    const followerSet = new Set(parsed.followers.map(u => u.username));
+    const entry = {
+      date: now,
+      followers: parsed.followers.length,
+      following: parsed.following.length,
+      unfollowers: parsed.following.filter(u => !followerSet.has(u.username)).length,
+    };
+    const next = [...history, entry].slice(-30);
+    setHistory(next);
+    persist({ data: parsed, scanDate: now, history: next });
   }, [history, persist]);
 
   const toggleWL = useCallback((username) => {
@@ -343,8 +387,8 @@ export default function InstaClean() {
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     setDragOver(false);
-    if (e.dataTransfer.files?.[0]) importFile(e.dataTransfer.files[0]);
-  }, [importFile]);
+    if (e.dataTransfer.files?.length) importFiles(e.dataTransfer.files);
+  }, [importFiles]);
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
@@ -401,15 +445,16 @@ export default function InstaClean() {
                 onClick={() => fileRef.current?.click()}
               >
                 <input
-                  ref={fileRef} type="file" accept=".json"
+                  ref={fileRef} type="file" accept=".json" multiple
                   style={{ display: "none" }}
-                  onChange={e => e.target.files?.[0] && importFile(e.target.files[0])}
+                  onChange={e => e.target.files?.length && importFiles(e.target.files)}
                 />
                 <div style={S.cardIcon}>📂</div>
                 <h3 style={S.cardTitle}>Import file</h3>
                 <p style={S.cardDesc}>
-                  Drag & drop or click to import your JSON file
-                  (Instagram export or console script output)
+                  Drag & drop or click to import your JSON file(s) — the
+                  console script output, or both followers_1.json and
+                  following.json from an Instagram data export
                 </p>
                 <span style={S.badge}>Recommended</span>
               </div>
@@ -669,13 +714,7 @@ export default function InstaClean() {
                           </svg>
                         )}
                       </div>
-                      <div style={S.avatar}>
-                        {user.pic ? (
-                          <img src={user.pic} alt="" style={S.avatarImg} onError={e => { e.target.style.display = "none"; }} />
-                        ) : (
-                          <span style={S.avatarLetter}>{user.username[0].toUpperCase()}</span>
-                        )}
-                      </div>
+                      <Avatar user={user} />
                       {tab === "unfollowers" && (
                         <button
                           style={{ ...S.wlBtn, ...(whitelist.has(user.username) ? S.wlActive : {}) }}

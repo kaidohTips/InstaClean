@@ -4,6 +4,21 @@
   "private": true,
   "description": "See who unfollowed you on Instagram — 100% client-side.",
   "type": "module",
+  "homepage": "https://github.com/kaidohTips/InstaClean",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kaidohTips/InstaClean.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kaidohTips/InstaClean/issues"
+  },
+  "keywords": [
+    "instagram",
+    "unfollowers",
+    "followers",
+    "react",
+    "privacy"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",

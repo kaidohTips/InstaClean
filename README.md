@@ -53,7 +53,10 @@ InstaClean doesn't connect to Instagram directly. Instead, it analyzes a JSON ex
 
 1. Go to Instagram Settings → Your Activity → Download Your Information
 2. Request your data in JSON format
-3. Import the downloaded file into InstaClean
+3. From the download, grab `followers_1.json` and `following.json`
+   (under `connections/followers_and_following/`) and import **both at
+   once** into InstaClean — Instagram splits them into separate files,
+   so InstaClean needs both to build the full picture
 
 ## Privacy & security
 
