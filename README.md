@@ -2,6 +2,8 @@
 
 > See who unfollowed you on Instagram.
 
+**🔗 Live app: [kaidohtips.github.io/InstaClean](https://kaidohtips.github.io/InstaClean)**
+
 InstaClean is a privacy-first Instagram relationship analyzer. It runs entirely in your browser — no server, no account creation, no data collection. Find out who doesn't follow you back, discover hidden fans, and clean up your following list.
 
 ![InstaClean dashboard](screenshots/dashboard.png)
@@ -20,6 +22,10 @@ InstaClean is a privacy-first Instagram relationship analyzer. It runs entirely 
 - **100% client-side** — Your data never leaves your device
 
 ## Getting started
+
+Just want to use it? Go to **[kaidohtips.github.io/InstaClean](https://kaidohtips.github.io/InstaClean)** — nothing to install.
+
+To run it locally instead:
 
 ```bash
 git clone git@github.com:kaidohTips/InstaClean.git
