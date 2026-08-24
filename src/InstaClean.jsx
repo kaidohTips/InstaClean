@@ -186,7 +186,7 @@ function Avatar({ user }) {
   return (
     <div style={S.avatar}>
       {user.pic && !broken ? (
-        <img src={user.pic} alt="" style={S.avatarImg} onError={() => setBroken(true)} />
+        <img src={user.pic} alt={"@" + user.username} style={S.avatarImg} onError={() => setBroken(true)} />
       ) : (
         <span style={S.avatarLetter}>{letter}</span>
       )}
@@ -371,6 +371,7 @@ export default function InstaClean() {
   }, [filtered, tab]);
 
   const resetAll = useCallback(async () => {
+    if (!window.confirm("Start a new scan? This clears your current results, whitelist, and scan history.")) return;
     setData(null);
     setView("home");
     setScanDate(null);
@@ -379,9 +380,10 @@ export default function InstaClean() {
   }, []);
 
   const copyToClipboard = useCallback((text) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2400);
+    navigator.clipboard.writeText(text).then(
+      () => { setCopied(true); setTimeout(() => setCopied(false), 2400); },
+      () => alert("Couldn't copy automatically — select the script text and copy it manually.")
+    );
   }, []);
 
   const handleDrop = useCallback((e) => {
@@ -398,7 +400,13 @@ export default function InstaClean() {
       {/* Header */}
       <header style={S.header}>
         <div style={S.headerInner}>
-          <div style={S.logo} onClick={() => setView(data ? "dashboard" : "home")}>
+          <div
+            style={S.logo}
+            role="button"
+            tabIndex={0}
+            onClick={() => setView(data ? "dashboard" : "home")}
+            onKeyDown={e => (e.key === "Enter" || e.key === " ") && setView(data ? "dashboard" : "home")}
+          >
             <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
               <defs>
                 <linearGradient id="iz" x1="0" y1="26" x2="26" y2="0">
@@ -439,10 +447,13 @@ export default function InstaClean() {
             <div style={S.methods}>
               <div
                 style={{ ...S.card, ...(dragOver ? S.cardActive : {}) }}
+                role="button"
+                tabIndex={0}
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
                 onClick={() => fileRef.current?.click()}
+                onKeyDown={e => (e.key === "Enter" || e.key === " ") && fileRef.current?.click()}
               >
                 <input
                   ref={fileRef} type="file" accept=".json" multiple
@@ -459,7 +470,13 @@ export default function InstaClean() {
                 <span style={S.badge}>Recommended</span>
               </div>
 
-              <div style={S.card} onClick={() => setView("script")}>
+              <div
+                style={S.card}
+                role="button"
+                tabIndex={0}
+                onClick={() => setView("script")}
+                onKeyDown={e => (e.key === "Enter" || e.key === " ") && setView("script")}
+              >
                 <div style={S.cardIcon}>⚡</div>
                 <h3 style={S.cardTitle}>Console script</h3>
                 <p style={S.cardDesc}>
@@ -707,7 +724,15 @@ export default function InstaClean() {
                     }}
                   >
                     <div style={S.uTop}>
-                      <div style={S.check} onClick={() => toggleSel(user.username)}>
+                      <div
+                        style={S.check}
+                        role="checkbox"
+                        aria-checked={selected.has(user.username)}
+                        aria-label={"Select @" + user.username}
+                        tabIndex={0}
+                        onClick={() => toggleSel(user.username)}
+                        onKeyDown={e => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggleSel(user.username))}
+                      >
                         {selected.has(user.username) && (
                           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                             <path d="M3 7l3 3 5-6" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
