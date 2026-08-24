@@ -456,13 +456,22 @@ export default function InstaClean() {
     a.click();
   }, [filtered, tab]);
 
+  // Non-destructive: go back to the import screen but keep the current
+  // scan around as `previousData` so the next import can diff against it.
+  const scanAgain = useCallback(() => {
+    setView("home");
+  }, []);
+
   const resetAll = useCallback(async () => {
     if (!window.confirm("Start a new scan? This clears your current results, whitelist, and scan history.")) return;
     setData(null);
     setPreviousData(null);
-    setView("home");
     setScanDate(null);
     setSelected(new Set());
+    setWhitelist(new Set());
+    setHistory([]);
+    setTab("unfollowers");
+    setView("home");
     try { localStorage.removeItem(STORE_KEY); } catch (_) {}
   }, []);
 
@@ -510,7 +519,8 @@ export default function InstaClean() {
             {data && view === "dashboard" && (
               <>
                 <button style={S.navBtn} onClick={() => setShowHistory(h => !h)}>📊 History</button>
-                <button style={S.navBtn} onClick={resetAll}>↻ New scan</button>
+                <button style={S.navBtn} onClick={scanAgain} title="Import a new file and compare it against this scan">🔄 Scan again</button>
+                <button style={S.navBtn} onClick={resetAll} title="Wipe everything and start over">↻ New scan</button>
               </>
             )}
             {view === "script" && <button style={S.navBtn} onClick={() => setView("home")}>← Back</button>}
