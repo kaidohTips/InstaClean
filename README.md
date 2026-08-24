@@ -18,6 +18,7 @@ InstaClean is a privacy-first Instagram relationship analyzer. It runs entirely 
 - **Bulk unfollow** — Generate console scripts to unfollow multiple accounts at once
 - **CSV export** — Download any list as a spreadsheet
 - **Scan history** — Track how your follower counts change over time
+- **Changes tab** — Each scan is kept on your device, so the next one shows exactly who followed/unfollowed you (and who you followed/unfollowed) since last time
 - **Search & sort** — Filter results by username or display name
 - **100% client-side** — Your data never leaves your device
 

@@ -8,6 +8,7 @@ const API_DELAY_MAX = 7000;
 const SCAN_BATCH_SIZE = 50;
 
 const TABS = [
+  { id: "changes", label: "Changes", icon: "🔀", color: "#3B82F6" },
   { id: "unfollowers", label: "Don't follow back", icon: "💔", color: "#EF4444" },
   { id: "fans", label: "You don't follow", icon: "👻", color: "#F59E0B" },
   { id: "mutuals", label: "Mutuals", icon: "🤝", color: "#10B981" },
@@ -194,6 +195,68 @@ function Avatar({ user }) {
   );
 }
 
+// ── Changes since the previous scan ────────────────────────────────────
+function ChangesPanel({ diff }) {
+  if (!diff) return null;
+
+  if (diff.empty) {
+    return (
+      <div style={S.empty}>
+        <div style={{ fontSize: 40, marginBottom: 16 }}>✨</div>
+        <div style={S.emptyText}>No changes since your last scan.</div>
+      </div>
+    );
+  }
+
+  const sections = [
+    { key: "newFollowers", title: "New followers", sign: "+", color: "#10B981", items: diff.newFollowers },
+    { key: "lostFollowers", title: "Unfollowed you", sign: "−", color: "#EF4444", items: diff.lostFollowers },
+    { key: "newFollowing", title: "You followed", sign: "+", color: "#10B981", items: diff.newFollowing },
+    { key: "lostFollowing", title: "You unfollowed", sign: "−", color: "#EF4444", items: diff.lostFollowing },
+  ].filter(s => s.items.length > 0);
+
+  return (
+    <div>
+      {sections.map(s => (
+        <div key={s.key} style={S.changeSection}>
+          <div style={S.changeHead}>
+            <span style={{ ...S.changeSign, color: s.color }}>{s.sign}</span>
+            <h3 style={S.changeTitle}>{s.title}</h3>
+            <span style={{ ...S.tabCount, background: s.color + "20", color: s.color }}>{s.items.length}</span>
+          </div>
+          <div style={S.grid}>
+            {s.items.map(user => (
+              <div key={user.username} style={S.uCard}>
+                <div style={S.uTop}>
+                  <Avatar user={user} />
+                  <span style={{ ...S.badge, background: s.color + "18", color: s.color }}>{s.sign}</span>
+                </div>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={S.uName}>
+                    @{user.username}
+                    {user.verified && <span style={S.uVerified}> ✓</span>}
+                  </div>
+                  {user.fullName && <div style={S.uFull}>{user.fullName}</div>}
+                </div>
+                <div style={S.uActions}>
+                  <a
+                    href={"https://instagram.com/" + user.username}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={S.profBtn}
+                  >
+                    Profile
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Animated number ──────────────────────────────────────────────────
 function Counter({ value, duration = 800 }) {
   const [n, setN] = useState(0);
@@ -217,6 +280,7 @@ function Counter({ value, duration = 800 }) {
 export default function InstaClean() {
   const [view, setView] = useState("home");
   const [data, setData] = useState(null);
+  const [previousData, setPreviousData] = useState(null);
   const [tab, setTab] = useState("unfollowers");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("alpha");
@@ -241,6 +305,7 @@ export default function InstaClean() {
         if (saved.history) setHistory(saved.history);
         if (saved.data) {
           setData(saved.data);
+          setPreviousData(saved.previousData || null);
           setScanDate(saved.scanDate);
           setView("dashboard");
         }
@@ -268,12 +333,30 @@ export default function InstaClean() {
     };
   }, [data]);
 
+  // Changes since the previous scan (null until a second scan has run)
+  const diff = useMemo(() => {
+    if (!data || !previousData) return null;
+    const prevFollowers = new Set(previousData.followers.map(u => u.username));
+    const prevFollowing = new Set(previousData.following.map(u => u.username));
+    const curFollowers = new Set(data.followers.map(u => u.username));
+    const curFollowing = new Set(data.following.map(u => u.username));
+    const newFollowers = data.followers.filter(u => !prevFollowers.has(u.username));
+    const lostFollowers = previousData.followers.filter(u => !curFollowers.has(u.username));
+    const newFollowing = data.following.filter(u => !prevFollowing.has(u.username));
+    const lostFollowing = previousData.following.filter(u => !curFollowing.has(u.username));
+    if (!newFollowers.length && !lostFollowers.length && !newFollowing.length && !lostFollowing.length) {
+      return { empty: true };
+    }
+    return { newFollowers, lostFollowers, newFollowing, lostFollowing };
+  }, [data, previousData]);
+
   const filtered = useMemo(() => {
     let list =
       tab === "unfollowers" ? lists.unfollowers :
       tab === "fans" ? lists.fans :
       tab === "mutuals" ? lists.mutuals :
-      lists.unfollowers.filter(u => whitelist.has(u.username));
+      tab === "whitelist" ? lists.unfollowers.filter(u => whitelist.has(u.username)) :
+      [];
 
     if (query) {
       const q = query.toLowerCase();
@@ -318,10 +401,13 @@ export default function InstaClean() {
     }
 
     const parsed = { followers, following };
+    const prevSnapshot = data;
     const now = new Date().toISOString();
     setData(parsed);
+    setPreviousData(prevSnapshot);
     setScanDate(now);
     setView("dashboard");
+    setTab(prevSnapshot ? "changes" : "unfollowers");
 
     const followerSet = new Set(parsed.followers.map(u => u.username));
     const entry = {
@@ -332,8 +418,8 @@ export default function InstaClean() {
     };
     const next = [...history, entry].slice(-30);
     setHistory(next);
-    persist({ data: parsed, scanDate: now, history: next });
-  }, [history, persist]);
+    persist({ data: parsed, previousData: prevSnapshot, scanDate: now, history: next });
+  }, [data, history, persist]);
 
   const toggleWL = useCallback((username) => {
     setWhitelist(prev => {
@@ -373,6 +459,7 @@ export default function InstaClean() {
   const resetAll = useCallback(async () => {
     if (!window.confirm("Start a new scan? This clears your current results, whitelist, and scan history.")) return;
     setData(null);
+    setPreviousData(null);
     setView("home");
     setScanDate(null);
     setSelected(new Set());
@@ -640,7 +727,7 @@ export default function InstaClean() {
 
             {/* Tabs */}
             <div style={S.tabs}>
-              {TABS.map(t => (
+              {TABS.filter(t => t.id !== "changes" || diff).map(t => (
                 <button
                   key={t.id}
                   style={{
@@ -659,126 +746,135 @@ export default function InstaClean() {
                     {t.id === "unfollowers" ? lists.unfollowers.length
                       : t.id === "fans" ? lists.fans.length
                       : t.id === "mutuals" ? lists.mutuals.length
-                      : whitelist.size}
+                      : t.id === "whitelist" ? whitelist.size
+                      : diff && !diff.empty
+                        ? diff.newFollowers.length + diff.lostFollowers.length + diff.newFollowing.length + diff.lostFollowing.length
+                        : 0}
                   </span>
                 </button>
               ))}
             </div>
 
-            {/* Toolbar */}
-            <div style={S.toolbar}>
-              <div style={S.search}>
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-                  <circle cx="7" cy="7" r="5.5" stroke="#8B8A97" strokeWidth="1.5" />
-                  <line x1="11" y1="11" x2="14.5" y2="14.5" stroke="#8B8A97" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-                <input
-                  style={S.searchInput}
-                  placeholder="Search users..."
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                />
-                {query && <button style={S.x} onClick={() => setQuery("")}>✕</button>}
-              </div>
-              <div style={S.toolRight}>
-                <select style={S.sel} value={sort} onChange={e => setSort(e.target.value)}>
-                  <option value="alpha">A → Z (username)</option>
-                  <option value="name">A → Z (name)</option>
-                </select>
-                {filtered.length > 0 && (
-                  <>
-                    <button style={S.tBtn} onClick={selectAll}>
-                      {selected.size === filtered.length ? "Deselect all" : "Select all"}
-                    </button>
-                    <button style={S.tBtn} onClick={exportCSV}>📥 CSV</button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div style={S.count}>
-              {filtered.length} result{filtered.length !== 1 ? "s" : ""}
-              {query && ' for "' + query + '"'}
-            </div>
-
-            {/* Grid */}
-            {filtered.length === 0 ? (
-              <div style={S.empty}>
-                <div style={{ fontSize: 40, marginBottom: 16 }}>
-                  {tab === "whitelist" ? "🤍" : "🎉"}
-                </div>
-                <div style={S.emptyText}>
-                  {tab === "whitelist"
-                    ? 'Your whitelist is empty. Add accounts from the "Don\'t follow back" tab.'
-                    : query ? "No results for this search." : "No users in this category!"}
-                </div>
-              </div>
+            {tab === "changes" ? (
+              <ChangesPanel diff={diff} />
             ) : (
-              <div style={S.grid}>
-                {filtered.map(user => (
-                  <div
-                    key={user.username}
-                    style={{
-                      ...S.uCard,
-                      ...(selected.has(user.username) ? S.uCardSel : {}),
-                    }}
-                  >
-                    <div style={S.uTop}>
-                      <div
-                        style={S.check}
-                        role="checkbox"
-                        aria-checked={selected.has(user.username)}
-                        aria-label={"Select @" + user.username}
-                        tabIndex={0}
-                        onClick={() => toggleSel(user.username)}
-                        onKeyDown={e => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggleSel(user.username))}
-                      >
-                        {selected.has(user.username) && (
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <path d="M3 7l3 3 5-6" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </div>
-                      <Avatar user={user} />
-                      {tab === "unfollowers" && (
-                        <button
-                          style={{ ...S.wlBtn, ...(whitelist.has(user.username) ? S.wlActive : {}) }}
-                          onClick={() => toggleWL(user.username)}
-                          title={whitelist.has(user.username) ? "Remove from whitelist" : "Add to whitelist"}
-                        >
-                          {whitelist.has(user.username) ? "🤍" : "♡"}
+              <>
+                {/* Toolbar */}
+                <div style={S.toolbar}>
+                  <div style={S.search}>
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                      <circle cx="7" cy="7" r="5.5" stroke="#8B8A97" strokeWidth="1.5" />
+                      <line x1="11" y1="11" x2="14.5" y2="14.5" stroke="#8B8A97" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                    <input
+                      style={S.searchInput}
+                      placeholder="Search users..."
+                      value={query}
+                      onChange={e => setQuery(e.target.value)}
+                    />
+                    {query && <button style={S.x} onClick={() => setQuery("")}>✕</button>}
+                  </div>
+                  <div style={S.toolRight}>
+                    <select style={S.sel} value={sort} onChange={e => setSort(e.target.value)}>
+                      <option value="alpha">A → Z (username)</option>
+                      <option value="name">A → Z (name)</option>
+                    </select>
+                    {filtered.length > 0 && (
+                      <>
+                        <button style={S.tBtn} onClick={selectAll}>
+                          {selected.size === filtered.length ? "Deselect all" : "Select all"}
                         </button>
-                      )}
-                      {tab === "whitelist" && (
-                        <button style={{ ...S.wlBtn, ...S.wlActive }} onClick={() => toggleWL(user.username)}>✕</button>
-                      )}
+                        <button style={S.tBtn} onClick={exportCSV}>📥 CSV</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div style={S.count}>
+                  {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+                  {query && ' for "' + query + '"'}
+                </div>
+
+                {/* Grid */}
+                {filtered.length === 0 ? (
+                  <div style={S.empty}>
+                    <div style={{ fontSize: 40, marginBottom: 16 }}>
+                      {tab === "whitelist" ? "🤍" : "🎉"}
                     </div>
-                    <div style={{ marginBottom: 10 }}>
-                      <div style={S.uName}>
-                        @{user.username}
-                        {user.verified && <span style={S.uVerified}> ✓</span>}
-                      </div>
-                      {user.fullName && <div style={S.uFull}>{user.fullName}</div>}
-                    </div>
-                    <div style={S.uActions}>
-                      <a
-                        href={"https://instagram.com/" + user.username}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={S.profBtn}
-                        onClick={e => e.stopPropagation()}
-                      >
-                        Profile
-                      </a>
-                      {(tab === "unfollowers" || tab === "whitelist") && (
-                        <button style={S.unfBtn} onClick={() => setModal({ users: [user.username] })}>
-                          Unfollow
-                        </button>
-                      )}
+                    <div style={S.emptyText}>
+                      {tab === "whitelist"
+                        ? 'Your whitelist is empty. Add accounts from the "Don\'t follow back" tab.'
+                        : query ? "No results for this search." : "No users in this category!"}
                     </div>
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div style={S.grid}>
+                    {filtered.map(user => (
+                      <div
+                        key={user.username}
+                        style={{
+                          ...S.uCard,
+                          ...(selected.has(user.username) ? S.uCardSel : {}),
+                        }}
+                      >
+                        <div style={S.uTop}>
+                          <div
+                            style={S.check}
+                            role="checkbox"
+                            aria-checked={selected.has(user.username)}
+                            aria-label={"Select @" + user.username}
+                            tabIndex={0}
+                            onClick={() => toggleSel(user.username)}
+                            onKeyDown={e => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggleSel(user.username))}
+                          >
+                            {selected.has(user.username) && (
+                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <path d="M3 7l3 3 5-6" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </div>
+                          <Avatar user={user} />
+                          {tab === "unfollowers" && (
+                            <button
+                              style={{ ...S.wlBtn, ...(whitelist.has(user.username) ? S.wlActive : {}) }}
+                              onClick={() => toggleWL(user.username)}
+                              title={whitelist.has(user.username) ? "Remove from whitelist" : "Add to whitelist"}
+                            >
+                              {whitelist.has(user.username) ? "🤍" : "♡"}
+                            </button>
+                          )}
+                          {tab === "whitelist" && (
+                            <button style={{ ...S.wlBtn, ...S.wlActive }} onClick={() => toggleWL(user.username)}>✕</button>
+                          )}
+                        </div>
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={S.uName}>
+                            @{user.username}
+                            {user.verified && <span style={S.uVerified}> ✓</span>}
+                          </div>
+                          {user.fullName && <div style={S.uFull}>{user.fullName}</div>}
+                        </div>
+                        <div style={S.uActions}>
+                          <a
+                            href={"https://instagram.com/" + user.username}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={S.profBtn}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            Profile
+                          </a>
+                          {(tab === "unfollowers" || tab === "whitelist") && (
+                            <button style={S.unfBtn} onClick={() => setModal({ users: [user.username] })}>
+                              Unfollow
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             {/* Bulk bar */}
@@ -953,6 +1049,12 @@ const S = {
   histHead: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   histRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", borderRadius: 8, background: "rgba(255,255,255,0.025)", marginBottom: 6, fontSize: 13, color: "#C4C3CF" },
   histStats: { display: "flex", gap: 12, fontSize: 12, color: "#8B8A97" },
+
+  // Changes
+  changeSection: { marginBottom: 22 },
+  changeHead: { display: "flex", alignItems: "center", gap: 9, marginBottom: 10 },
+  changeSign: { fontSize: 18, fontWeight: 800, width: 20, textAlign: "center" },
+  changeTitle: { fontSize: 14.5, fontWeight: 700, flex: 1 },
 
   // Ratio
   ratio: { background: "#111118", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 13, padding: "16px 18px", marginBottom: 16 },
