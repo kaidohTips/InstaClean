@@ -5,12 +5,7 @@
 InstaClean is a privacy-first Instagram relationship analyzer. It runs entirely in your browser — no server, no account creation, no data collection. Find out who doesn't follow you back, discover hidden fans, and clean up your following list.
 
 ![InstaClean dashboard](screenshots/dashboard.png)
-
-## Screenshots
-
-| Unfollowers | Hidden fans | Bulk unfollow |
-| :---: | :---: | :---: |
-| ![Unfollowers tab](screenshots/unfollowers.png) | ![Hidden fans tab](screenshots/hidden-fans.png) | ![Bulk unfollow script](screenshots/bulk-unfollow.png) |
+![InstaClean Followers Dashboard](screenshots/dashboard2.png)
 
 ## Features
 
